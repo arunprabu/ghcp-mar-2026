@@ -1,0 +1,1 @@
+"""Products REST API application."""
