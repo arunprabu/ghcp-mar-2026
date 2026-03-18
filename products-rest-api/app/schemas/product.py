@@ -85,7 +85,19 @@ class ProductListResponse(BaseModel):
     """List of products response."""
 
     items: list[ProductResponse] = Field(description="List of products")
-    total: int = Field(description="Total number of products")
+    total: int = Field(description="Total number of matching products")
+    page: int = Field(default=1, description="Current page number")
+    page_size: int = Field(default=10, description="Number of items per page")
+
+    class Config:
+        """Pydantic config."""
+        from_attributes = True
+
+
+class ProductDeleteResponse(BaseModel):
+    """Product deletion response."""
+
+    message: str = Field(description="Deletion success message")
 
     class Config:
         """Pydantic config."""

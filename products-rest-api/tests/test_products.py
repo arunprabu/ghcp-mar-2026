@@ -86,7 +86,52 @@ class TestProductAPI:
         data = response.json()
         assert "items" in data
         assert "total" in data
+        assert "page" in data
+        assert "page_size" in data
         assert data["total"] == 3
+        assert data["page"] == 1
+
+    async def test_list_products_pagination(self, client: AsyncClient) -> None:
+        """Test that pagination correctly limits and offsets results."""
+        for i in range(5):
+            await client.post(
+                "/api/v1/products",
+                json={"name": f"Paged Product {i:02d}", "category": "Books", "price": 10.0 + i},
+            )
+
+        # First page — 2 items
+        resp1 = await client.get("/api/v1/products?sort_by=name&sort_order=asc&page=1&page_size=2")
+        assert resp1.status_code == 200
+        d1 = resp1.json()
+        assert len(d1["items"]) == 2
+        assert d1["total"] == 5
+        assert d1["page"] == 1
+        assert d1["page_size"] == 2
+        assert d1["items"][0]["name"] == "Paged Product 00"
+
+        # Second page — 2 items
+        resp2 = await client.get("/api/v1/products?sort_by=name&sort_order=asc&page=2&page_size=2")
+        assert resp2.status_code == 200
+        d2 = resp2.json()
+        assert len(d2["items"]) == 2
+        assert d2["items"][0]["name"] == "Paged Product 02"
+
+        # Third page — 1 remaining item
+        resp3 = await client.get("/api/v1/products?sort_by=name&sort_order=asc&page=3&page_size=2")
+        assert resp3.status_code == 200
+        d3 = resp3.json()
+        assert len(d3["items"]) == 1
+        assert d3["items"][0]["name"] == "Paged Product 04"
+
+    async def test_list_products_invalid_page(self, client: AsyncClient) -> None:
+        """Test that page numbers below 1 are rejected."""
+        response = await client.get("/api/v1/products?page=0")
+        assert response.status_code == 422
+
+    async def test_list_products_page_size_exceeds_max(self, client: AsyncClient) -> None:
+        """Test that page_size above MAX_PAGE_SIZE is rejected."""
+        response = await client.get("/api/v1/products?page_size=101")
+        assert response.status_code == 422
 
     async def test_list_products_filter_by_category(self, client: AsyncClient) -> None:
         """Test listing products filtered by category."""

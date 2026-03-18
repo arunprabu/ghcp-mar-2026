@@ -98,9 +98,11 @@ class ProductService:
         max_price: Optional[float] = None,
         sort_by: str = "name",
         sort_order: str = "asc",
+        page: int = 1,
+        page_size: int = 10,
     ) -> tuple[List[Product], int]:
         """
-        List all products with filtering and sorting.
+        List all products with filtering, sorting, and pagination.
 
         Args:
             category: Filter by category
@@ -108,16 +110,21 @@ class ProductService:
             max_price: Maximum price filter
             sort_by: Sort field
             sort_order: Sort order (asc/desc)
+            page: Page number (1-based)
+            page_size: Number of items per page
 
         Returns:
             Tuple of (products, total count)
         """
+        offset = (page - 1) * page_size
         return await self.repository.list_all(
             category=category,
             min_price=min_price,
             max_price=max_price,
             sort_by=sort_by,
             sort_order=sort_order,
+            limit=page_size,
+            offset=offset,
         )
 
     async def update_product(

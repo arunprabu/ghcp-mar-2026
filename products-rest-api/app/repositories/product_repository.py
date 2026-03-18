@@ -1,9 +1,8 @@
 """Product repository (data access layer)."""
 
 from typing import Optional, List
-from uuid import UUID
 
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
@@ -50,6 +49,13 @@ class ProductRepository:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
+    # Allowed sort fields — whitelist prevents arbitrary attribute access
+    _SORT_FIELDS: dict[str, object] = {
+        "name": Product.name,
+        "price": Product.price,
+        "created_at": Product.created_at,
+    }
+
     async def list_all(
         self,
         category: Optional[str] = None,
@@ -57,9 +63,11 @@ class ProductRepository:
         max_price: Optional[float] = None,
         sort_by: str = "name",
         sort_order: str = "asc",
+        limit: int = 10,
+        offset: int = 0,
     ) -> tuple[List[Product], int]:
         """
-        List all products with optional filtering and sorting.
+        List all products with optional filtering, sorting, and pagination.
 
         Args:
             category: Filter by category
@@ -67,6 +75,8 @@ class ProductRepository:
             max_price: Filter by maximum price
             sort_by: Sort field (name, price, created_at)
             sort_order: Sort order (asc, desc)
+            limit: Maximum number of records to return
+            offset: Number of records to skip
 
         Returns:
             Tuple of (products list, total count)
@@ -83,22 +93,26 @@ class ProductRepository:
         if max_price is not None:
             filters.append(Product.price <= max_price)
 
-        # Build query
-        query = select(Product).where(and_(*filters))
+        combined_filter = and_(*filters)
 
-        # Apply sorting
-        sort_column = getattr(Product, sort_by, Product.name)
-        if sort_order.lower() == "desc":
-            query = query.order_by(sort_column.desc())
-        else:
-            query = query.order_by(sort_column.asc())
+        # Efficient count using SELECT COUNT(*) — avoids loading all rows into memory
+        count_result = await self.session.execute(
+            select(func.count()).select_from(Product).where(combined_filter)
+        )
+        total = count_result.scalar_one()
 
-        # Get total count
-        count_query = select(Product).where(and_(*filters))
-        count_result = await self.session.execute(count_query)
-        total = len(count_result.scalars().all())
+        # Resolve sort column from whitelist; fall back to name
+        sort_column = self._SORT_FIELDS.get(sort_by, Product.name)
+        order_expr = sort_column.desc() if sort_order.lower() == "desc" else sort_column.asc()
 
-        # Execute query
+        # Fetch paginated results
+        query = (
+            select(Product)
+            .where(combined_filter)
+            .order_by(order_expr)
+            .limit(limit)
+            .offset(offset)
+        )
         result = await self.session.execute(query)
         products = result.scalars().all()
 

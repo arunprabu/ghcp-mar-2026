@@ -1,9 +1,9 @@
 """Pytest configuration and fixtures."""
 
-import asyncio
 from typing import AsyncGenerator
 
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -12,15 +12,7 @@ from app.main import app
 from httpx import AsyncClient
 
 
-@pytest.fixture(scope="session")
-def event_loop() -> asyncio.AbstractEventLoop:
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_db() -> AsyncGenerator[AsyncSession, None]:
     """Create a test database session."""
     # Use in-memory SQLite for testing
@@ -41,7 +33,7 @@ async def test_db() -> AsyncGenerator[AsyncSession, None]:
     await engine.dispose()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client(test_db: AsyncSession) -> AsyncClient:
     """Create a test client."""
 

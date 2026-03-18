@@ -2,10 +2,8 @@
 
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, Numeric, String, func, Index
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Boolean, DateTime, Numeric, String, func, Index, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -17,7 +15,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id: Mapped[str] = mapped_column(
-        PGUUID(as_uuid=False),
+        UUID(as_uuid=False),
         primary_key=True,
         nullable=False,
     )
@@ -48,6 +46,8 @@ class Product(Base):
         Index("idx_product_name", "name"),
         Index("idx_product_category", "category"),
         Index("idx_product_is_deleted", "is_deleted"),
+        Index("idx_product_price", "price"),
+        Index("idx_product_created_at", "created_at"),
     )
 
     def __repr__(self) -> str:

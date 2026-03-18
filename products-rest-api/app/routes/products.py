@@ -2,16 +2,17 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants import ProductCategory, API_V1_PREFIX
+from app.constants import ProductCategory, API_V1_PREFIX, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.database import get_session
 from app.schemas.product import (
     ProductCreateRequest,
     ProductUpdateRequest,
     ProductResponse,
     ProductListResponse,
+    ProductDeleteResponse,
 )
 from app.services.product_service import ProductService
 from app.utils.exceptions import (
@@ -72,16 +73,25 @@ async def list_products(
     max_price: Optional[float] = None,
     sort_by: str = "name",
     sort_order: str = "asc",
+    page: int = Query(default=1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(
+        default=DEFAULT_PAGE_SIZE,
+        ge=1,
+        le=MAX_PAGE_SIZE,
+        description=f"Items per page (max {MAX_PAGE_SIZE})",
+    ),
     session: AsyncSession = Depends(get_session),
 ) -> ProductListResponse:
     """
-    List all products with optional filtering and sorting.
+    List all products with optional filtering, sorting, and pagination.
 
     - **category**: Filter by product category (optional)
     - **min_price**: Filter by minimum price (optional)
     - **max_price**: Filter by maximum price (optional)
     - **sort_by**: Sort field: name, price, created_at (default: name)
     - **sort_order**: Sort order: asc, desc (default: asc)
+    - **page**: Page number, starting at 1 (default: 1)
+    - **page_size**: Items per page (default: 10, max: 100)
     """
     service = ProductService(session)
     products, total = await service.list_products(
@@ -90,11 +100,15 @@ async def list_products(
         max_price=max_price,
         sort_by=sort_by,
         sort_order=sort_order,
+        page=page,
+        page_size=page_size,
     )
 
     return ProductListResponse(
         items=[ProductResponse.model_validate(product) for product in products],
         total=total,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -165,13 +179,14 @@ async def update_product(
 
 @router.delete(
     "/{product_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=ProductDeleteResponse,
+    status_code=status.HTTP_200_OK,
     summary="Delete product (soft delete)",
 )
 async def delete_product(
     product_id: str,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> ProductDeleteResponse:
     """
     Soft delete a product (mark as deleted, not removed from DB).
 
@@ -180,6 +195,9 @@ async def delete_product(
     try:
         service = ProductService(session)
         await service.delete_product(product_id)
+        return ProductDeleteResponse(
+            message=f"Product with id {product_id} deleted successfully"
+        )
     except ProductNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
